@@ -1,0 +1,5 @@
+{
+  "name": "Wheel of Names",
+  "description": "A high-performance, offline-capable name picker wheel supporting 5000+ entries with smooth animations and physics.",
+  "requestFramePermissions": []
+}
