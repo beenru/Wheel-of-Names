@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { getSegmentColor } from '../utils/colors';
 
@@ -19,9 +20,11 @@ const WheelCanvas = forwardRef<WheelRef, WheelCanvasProps>(({ items, onFinished,
   // Physics state stored in refs to avoid re-renders during animation loop
   const stateRef = useRef({
     angle: 0, // Current rotation angle in radians
-    velocity: 0, // Current angular velocity
-    isAccelerating: false,
-    lastFrameTime: 0,
+    startAngle: 0,
+    targetAngle: 0,
+    startTime: 0,
+    duration: 5000, // Fixed 5 seconds duration
+    isSpinningInternal: false,
   });
 
   // Handle Resize
@@ -44,12 +47,21 @@ const WheelCanvas = forwardRef<WheelRef, WheelCanvasProps>(({ items, onFinished,
   // Expose spin method
   useImperativeHandle(ref, () => ({
     spin: () => {
-      if (stateRef.current.velocity > 0 || items.length === 0) return;
+      if (stateRef.current.isSpinningInternal || items.length === 0) return;
       
-      // Initial push
-      const randomSpeed = 0.25 + Math.random() * 0.4; 
-      stateRef.current.velocity = randomSpeed; 
-      stateRef.current.isAccelerating = true;
+      const now = performance.now();
+      stateRef.current.startTime = now;
+      stateRef.current.startAngle = stateRef.current.angle;
+      stateRef.current.duration = 5000;
+      stateRef.current.isSpinningInternal = true;
+      
+      // Calculate target angle
+      // Minimum 5 full spins (10PI) + random additional spins + random final offset
+      const rotations = 5 + Math.random() * 5; // 5 to 10 rotations
+      const extraAngle = Math.random() * 2 * Math.PI; 
+      
+      stateRef.current.targetAngle = stateRef.current.startAngle + (rotations * 2 * Math.PI) + extraAngle;
+      
       setIsSpinning(true);
     }
   }));
@@ -74,30 +86,37 @@ const WheelCanvas = forwardRef<WheelRef, WheelCanvasProps>(({ items, onFinished,
     const radius = (size / 2) - 14; // Margin for border
     const arcSize = (2 * Math.PI) / items.length;
 
-    // We only render text if items < 200 to prevent performance bottlenecks and unreadable text
+    // Performance optimizations
     const shouldRenderText = items.length <= 200; 
+    const skipStroke = items.length > 500; // Skip borders for very large lists to improve FPS
 
-    const render = (time: number) => {
+    const render = (now: number) => {
       // Clear
       ctx.clearRect(0, 0, size, size);
 
-      // Physics Update
-      if (stateRef.current.velocity > 0) {
-        stateRef.current.angle += stateRef.current.velocity;
+      // Time-based Physics Update
+      if (stateRef.current.isSpinningInternal) {
+        const elapsed = now - stateRef.current.startTime;
         
-        // FRICTION TWEAK: Changed from 0.985 to 0.975 for shorter, snappier spins
-        stateRef.current.velocity *= 0.975; 
-
-        if (stateRef.current.velocity < 0.0005) {
-          stateRef.current.velocity = 0;
-          stateRef.current.isAccelerating = false;
+        if (elapsed >= stateRef.current.duration) {
+          // Finish Spin
+          stateRef.current.angle = stateRef.current.targetAngle;
+          stateRef.current.isSpinningInternal = false;
           setIsSpinning(false);
           
           const normalizedAngle = stateRef.current.angle % (2 * Math.PI);
           const rotationOffset = (2 * Math.PI) - normalizedAngle;
-          const winningIndex = Math.floor(rotationOffset / arcSize) % items.length;
+          // Calculate index safely handling modulo negative or large numbers
+          const winningIndex = (Math.floor(rotationOffset / arcSize) % items.length + items.length) % items.length;
           
           onFinished(items[winningIndex]);
+        } else {
+          // Easing Function: Quartic Ease Out (Fast start, slow end)
+          const t = elapsed / stateRef.current.duration;
+          const ease = 1 - Math.pow(1 - t, 4);
+          
+          stateRef.current.angle = stateRef.current.startAngle + 
+            (stateRef.current.targetAngle - stateRef.current.startAngle) * ease;
         }
       }
 
@@ -122,9 +141,12 @@ const WheelCanvas = forwardRef<WheelRef, WheelCanvasProps>(({ items, onFinished,
         ctx.arc(0, 0, radius, i * arcSize, (i + 1) * arcSize);
         ctx.fillStyle = getSegmentColor(i, items.length);
         ctx.fill();
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        
+        if (!skipStroke) {
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
 
         // Draw Text
         if (shouldRenderText) {
@@ -173,7 +195,7 @@ const WheelCanvas = forwardRef<WheelRef, WheelCanvasProps>(({ items, onFinished,
       ctx.stroke();
 
       // Loop
-      if (stateRef.current.velocity > 0) {
+      if (stateRef.current.isSpinningInternal) {
         requestAnimationFrame(render);
       }
     };

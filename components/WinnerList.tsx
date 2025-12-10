@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Winner } from '../types';
 
@@ -25,9 +26,10 @@ const WinnerList: React.FC<WinnerListProps> = ({ winners, onClear }) => {
   const handleExport = () => {
     if (winners.length === 0) return;
 
-    const headers = ["Name", "Category", "Time"];
+    const headers = ["Name", "Office", "Category", "Time"];
     const rows = winners.map(w => [
         `"${w.name.replace(/"/g, '""')}"`,
+        `"${(w.office || 'General').replace(/"/g, '""')}"`,
         `"${w.category.replace(/"/g, '""')}"`,
         `"${new Date(w.timestamp).toLocaleString()}"`
     ]);
@@ -115,8 +117,13 @@ const WinnerList: React.FC<WinnerListProps> = ({ winners, onClear }) => {
                   key={winner.id}
                   className="bg-slate-900/60 p-3 rounded-lg border border-slate-700/30 text-sm text-slate-200 flex justify-between items-center animate-fade-in hover:bg-slate-700/50 transition-colors"
                 >
-                  <span className="font-semibold truncate mr-2 text-yellow-50">{winner.name}</span>
-                  <span className="text-xs text-slate-500 font-mono" aria-label={`Time: ${new Date(winner.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}>
+                  <div className="flex flex-col min-w-0 mr-2">
+                    <span className="font-semibold truncate text-yellow-50">{winner.name}</span>
+                    {winner.office && winner.office !== 'General' && (
+                        <span className="text-xs text-slate-400 truncate">{winner.office}</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-500 font-mono shrink-0" aria-label={`Time: ${new Date(winner.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}>
                     {new Date(winner.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </li>

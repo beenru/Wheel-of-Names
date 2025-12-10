@@ -15,6 +15,7 @@ export interface Winner {
   id: string;
   name: string;
   category: string;
+  office?: string;
   timestamp: number;
 }
 
